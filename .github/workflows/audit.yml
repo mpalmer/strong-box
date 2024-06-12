@@ -1,0 +1,79 @@
+name: Periodic audit
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  push:
+    paths:
+      - "**/Cargo.*"
+      - ".github/workflows/audit.yml"
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  security_audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install rust
+        id: rust-install
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Audit deps
+        run: |
+          cargo audit -D warnings
+
+  compat:
+    name: See if future Rust versions (or deps) will break anything
+
+    strategy:
+      matrix:
+        rust-toolchain:
+          - stable
+          - nightly
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install rust
+        id: rust-install
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust-toolchain }}
+          components: clippy
+
+      - name: Update deps
+        run: |
+          cargo +${{ steps.rust-install.outputs.name }} update
+
+      - name: Test
+        env:
+          RUSTFLAGS: -D warnings
+        run: |
+          cargo +${{ steps.rust-install.outputs.name }} test
+
+      - name: Clippy
+        run: |
+          cargo +${{ steps.rust-install.outputs.name }} clippy -- -D warnings
