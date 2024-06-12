@@ -1,6 +1,11 @@
 [package]
 name = "strong-box"
+description = "Strong, ergonomic encryption for non-cryptographers"
 version = "0.0.0-git"
+authors = ["Matt Palmer <matt@hezmatt.org>"]
+license = "GPL-3.0-only"
+homepage = "https://github.com/mpalmer/strong-box"
+repository = "https://github.com/mpalmer/strong-box"
 edition = "2021"
 # Remember: changing this is a breaking change (and requires updating CI configs, too)
 rust-version = "1.74"
