@@ -50,6 +50,10 @@ pub use shared_strong_box::{SharedStrongBox, SharedStrongBoxKey};
 pub use stem_strong_box::StemStrongBox;
 pub use strong_box::StrongBox;
 
+/// All keys that are used by strongboxes must be wrapped in this type in order to minimise the
+/// chance of leakage.
+pub type Key<T> = secrecy::Secret<T>;
+
 use strong_box::Ciphertext;
 
 mod kdf;

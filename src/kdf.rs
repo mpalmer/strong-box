@@ -1,13 +1,15 @@
 use hkdf::Hkdf;
-use secrecy::{ExposeSecret as _, Secret};
+use secrecy::ExposeSecret as _;
 use sha2::Sha256;
 
-pub(crate) fn derive_key(key: &Secret<[u8; 32]>, context: &[u8]) -> Secret<[u8; 32]> {
+use super::Key;
+
+pub(crate) fn derive_key(key: &Key<[u8; 32]>, context: &[u8]) -> Key<[u8; 32]> {
 	let hk = Hkdf::<Sha256>::from_prk(key.expose_secret()).expect("key not long enough");
 
 	let mut output = [0u8; 32];
 
 	hk.expand(context, &mut output).expect("KBKDF assploded");
 
-	Secret::new(output)
+	Key::new(output)
 }

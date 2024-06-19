@@ -3,10 +3,10 @@ use chacha20poly1305::{
 	ChaCha20Poly1305, KeyInit as _,
 };
 use rand::{thread_rng, RngCore};
-use secrecy::{ExposeSecret as _, Secret};
+use secrecy::ExposeSecret as _;
 use std::{collections::HashMap, fmt::Debug};
 
-use super::{Error, KeyId};
+use super::{Error, Key, KeyId};
 
 /// A secure symmetric encryption container, supporting key rotation and AAD contexts.
 ///
@@ -97,19 +97,19 @@ use super::{Error, KeyId};
 /// ```
 #[derive(Clone, Debug)]
 pub struct StrongBox {
-	encryption_key: Secret<[u8; 32]>,
+	encryption_key: Key<[u8; 32]>,
 	encryption_key_id: KeyId,
-	decryption_keys: HashMap<KeyId, Secret<[u8; 32]>>,
+	decryption_keys: HashMap<KeyId, Key<[u8; 32]>>,
 }
 
 impl StrongBox {
 	/// Create a new [`StrongBox`].
 	#[tracing::instrument(level = "debug", skip(enc_key, dec_keys))]
 	pub fn new(
-		enc_key: impl Into<Secret<[u8; 32]>>,
-		dec_keys: impl IntoIterator<Item = impl Into<Secret<[u8; 32]>>>,
+		enc_key: impl Into<Key<[u8; 32]>>,
+		dec_keys: impl IntoIterator<Item = impl Into<Key<[u8; 32]>>>,
 	) -> Self {
-		let mut key_map: HashMap<KeyId, Secret<[u8; 32]>> = HashMap::default();
+		let mut key_map: HashMap<KeyId, Key<[u8; 32]>> = HashMap::default();
 
 		for key in dec_keys.into_iter() {
 			let key = key.into();
@@ -129,14 +129,14 @@ impl StrongBox {
 		}
 	}
 
-	/// Just like [`StrongBox::encrypt_secret`], but for data that isn't protected by [`secrecy::Secret`].
+	/// Just like [`StrongBox::encrypt_secret`], but for data that isn't already protected by [`secrecy::Secret`].
 	#[tracing::instrument(level = "debug", skip(plaintext))]
 	pub fn encrypt(
 		&self,
 		plaintext: impl Into<Vec<u8>>,
 		ctx: impl AsRef<[u8]> + Debug,
 	) -> Result<Vec<u8>, Error> {
-		self.encrypt_secret(Secret::new(plaintext.into()), ctx.as_ref())
+		self.encrypt_secret(Key::new(plaintext.into()), ctx.as_ref())
 	}
 
 	/// Encrypt secret data using the [`StrongBox`]'s encryption key, within the [`StrongBox`]'s specified context.
@@ -148,7 +148,7 @@ impl StrongBox {
 	#[tracing::instrument(level = "debug", skip(plaintext))]
 	pub fn encrypt_secret(
 		&self,
-		plaintext: impl Into<Secret<Vec<u8>>>,
+		plaintext: impl Into<Key<Vec<u8>>>,
 		ctx: impl AsRef<[u8]> + Debug,
 	) -> Result<Vec<u8>, Error> {
 		let cipher = ChaCha20Poly1305::new((self.encryption_key.expose_secret()).into());

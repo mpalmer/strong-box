@@ -1,6 +1,6 @@
 use ciborium_ll::Header;
 
-use super::{kdf, Error};
+use super::{kdf, Error, Key};
 
 type Kid = [u8; 16];
 
@@ -73,7 +73,7 @@ impl std::fmt::Display for KeyId {
 
 /// Get a reasonably-unique ID for a key
 #[tracing::instrument(level = "trace")]
-pub(super) fn key_id(key: &secrecy::Secret<[u8; 32]>) -> KeyId {
+pub(super) fn key_id(key: &Key<[u8; 32]>) -> KeyId {
 	use secrecy::ExposeSecret as _;
 
 	let new_id: Kid = Default::default();

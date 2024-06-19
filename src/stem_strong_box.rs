@@ -1,7 +1,6 @@
-use secrecy::Secret;
 use std::{fmt::Debug, time::Duration};
 
-use crate::{kdf, RotatingStrongBox, StrongBox};
+use super::{kdf, Key, RotatingStrongBox, StrongBox};
 
 /// A way to derive many [`StrongBox`]es from one set of keys.
 ///
@@ -100,16 +99,16 @@ use crate::{kdf, RotatingStrongBox, StrongBox};
 /// ```
 #[derive(Clone, Debug)]
 pub struct StemStrongBox {
-	encryption_key: Secret<[u8; 32]>,
-	decryption_keys: Vec<Secret<[u8; 32]>>,
+	encryption_key: Key<[u8; 32]>,
+	decryption_keys: Vec<Key<[u8; 32]>>,
 }
 
 impl StemStrongBox {
 	/// Create a new [`StemStrongBox`].
 	#[tracing::instrument(level = "debug", skip(enc_key, dec_keys))]
 	pub fn new(
-		enc_key: impl Into<Secret<[u8; 32]>> + Debug,
-		dec_keys: impl IntoIterator<Item = impl Into<Secret<[u8; 32]>>> + Debug,
+		enc_key: impl Into<Key<[u8; 32]>> + Debug,
+		dec_keys: impl IntoIterator<Item = impl Into<Key<[u8; 32]>>> + Debug,
 	) -> Self {
 		Self {
 			encryption_key: enc_key.into(),

@@ -1,13 +1,13 @@
-use secrecy::{ExposeSecret, Secret};
+use secrecy::ExposeSecret as _;
 use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret, StaticSecret};
 
-use super::{Error, StrongBox};
+use super::{Error, Key, StrongBox};
 
 const PRIVATE_KEY: u8 = 0;
 const PUBLIC_KEY: u8 = 1;
 
 pub struct SharedStrongBoxKey {
-	key: Option<Secret<StaticSecret>>,
+	key: Option<Key<StaticSecret>>,
 	public: PublicKey,
 }
 
@@ -27,7 +27,7 @@ impl SharedStrongBoxKey {
 	fn new_from_key(key: StaticSecret) -> Self {
 		SharedStrongBoxKey {
 			public: (&key).into(),
-			key: Some(Secret::new(key)),
+			key: Some(Key::new(key)),
 		}
 	}
 
@@ -44,11 +44,11 @@ impl SharedStrongBoxKey {
 			.map(|k| k.expose_secret().diffie_hellman(pubkey))
 	}
 
-	pub fn private(&self) -> Option<Secret<Vec<u8>>> {
+	pub fn private(&self) -> Option<Key<Vec<u8>>> {
 		self.key.as_ref().map(|k| {
 			let mut v = vec![PRIVATE_KEY];
 			v.extend_from_slice(k.expose_secret().as_bytes());
-			Secret::new(v)
+			Key::new(v)
 		})
 	}
 
@@ -116,7 +116,7 @@ impl SharedStrongBox {
 		aad.extend_from_slice(ctx);
 		aad.extend_from_slice(tmp_pubkey.as_bytes());
 
-		let strong_box = StrongBox::new(Secret::new(box_key.to_bytes()), Vec::<[u8; 32]>::new());
+		let strong_box = StrongBox::new(Key::new(box_key.to_bytes()), Vec::<[u8; 32]>::new());
 		let ciphertext = strong_box.encrypt(plaintext, &aad)?;
 
 		Ciphertext::new(tmp_pubkey.to_bytes(), ciphertext).to_bytes()
@@ -142,7 +142,7 @@ impl SharedStrongBox {
 		aad.extend_from_slice(ctx);
 		aad.extend_from_slice(&ciphertext.pubkey);
 
-		let strong_box = StrongBox::new(Secret::new(box_key), vec![Secret::new(box_key)]);
+		let strong_box = StrongBox::new(Key::new(box_key), vec![Key::new(box_key)]);
 
 		strong_box.decrypt(&ciphertext.ciphertext, &aad)
 	}
