@@ -10,6 +10,11 @@ edition = "2021"
 # Remember: changing this is a breaking change (and requires updating CI configs, too)
 rust-version = "1.74"
 
+include = [
+	"/LICENCE",
+	"/src/*.rs",
+]
+
 [dependencies]
 ciborium-io = { version = "0.2", features = ["std"] }
 ciborium-ll = { version = "0.2", features = ["std"] }
