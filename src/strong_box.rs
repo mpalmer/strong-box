@@ -22,10 +22,10 @@ pub trait StrongBox {
 	///
 	/// Will return one of the following:
 	/// * [`Error::Decryption`] if the ciphertext was encrypted with a different
-	/// key, or a different context.
+	///   key, or a different context.
 	/// * [`Error::Decoding`] if the ciphertext was malformed, which means that either the
-	/// ciphertext was corrupted in storage or transit, or the data provided was never a
-	/// ciphertext.
+	///   ciphertext was corrupted in storage or transit, or the data provided was never a
+	///   ciphertext.
 	fn decrypt(
 		&self,
 		ciphertext: impl AsRef<[u8]>,
