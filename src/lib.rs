@@ -41,12 +41,14 @@
 mod error;
 mod rotating_strong_box;
 mod shared_strong_box;
+mod static_strong_box;
 mod stem_strong_box;
 mod strong_box;
 
 pub use error::Error;
 pub use rotating_strong_box::RotatingStrongBox;
 pub use shared_strong_box::{SharedStrongBox, SharedStrongBoxKey};
+pub use static_strong_box::StaticStrongBox;
 pub use stem_strong_box::StemStrongBox;
 pub use strong_box::StrongBox;
 
@@ -54,7 +56,7 @@ pub use strong_box::StrongBox;
 /// chance of leakage.
 pub type Key<T> = secrecy::Secret<T>;
 
-use strong_box::Ciphertext;
+use static_strong_box::Ciphertext;
 
 mod kdf;
 mod key_id;

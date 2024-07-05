@@ -7,7 +7,7 @@ use std::{
 	time::Duration,
 };
 
-use super::{kdf, Ciphertext, Error, Key, KeyId, StrongBox};
+use super::{kdf, Ciphertext, Error, Key, KeyId, StaticStrongBox, StrongBox};
 
 /// A [`StrongBox`] variant that uses a different set of keys for each period of time.
 ///
@@ -78,30 +78,47 @@ impl RotatingStrongBox {
 		}
 	}
 
-	#[tracing::instrument(level = "debug", skip(plaintext))]
-	pub fn encrypt(
-		&self,
-		plaintext: impl Into<Vec<u8>>,
-		ctx: impl AsRef<[u8]> + Debug,
-	) -> Result<Vec<u8>, Error> {
-		self.encrypt_secret(Key::new(plaintext.into()), ctx.as_ref())
+	#[tracing::instrument(level = "trace", skip(self, ciphertext))]
+	fn try_decrypt_with(&self, ciphertext: &Ciphertext, ctx: &[u8]) -> Result<Vec<u8>, Error> {
+		let key_cache = self.key_cache.read_arc();
+
+		if let Some(cached_strongbox) = key_cache.decryptor_cache.get(&ciphertext.key_id) {
+			if cached_strongbox.is_expired(self.time.now()) {
+				tracing::debug!(key_id=%ciphertext.key_id, "Key expired");
+				Err(Error::Decryption)
+			} else {
+				cached_strongbox
+					.strong_box
+					.decrypt_ciphertext(ciphertext, ctx)
+			}
+		} else {
+			tracing::debug!(key_id=%ciphertext.key_id, "Key not found");
+			Err(Error::Decryption)
+		}
 	}
 
+	#[cfg(test)]
+	fn timewarp(&mut self, secs: i64) {
+		self.time.timewarp(secs)
+	}
+}
+
+impl StrongBox for RotatingStrongBox {
 	#[tracing::instrument(level = "debug", skip(plaintext))]
-	pub fn encrypt_secret(
+	fn encrypt(
 		&self,
-		plaintext: impl Into<Key<Vec<u8>>>,
+		plaintext: impl AsRef<[u8]>,
 		ctx: impl AsRef<[u8]> + Debug,
 	) -> Result<Vec<u8>, Error> {
 		let mut key_cache = self.key_cache.write_arc();
 		key_cache
 			.current_encryptor(self.time.now())
 			.strong_box
-			.encrypt_secret(plaintext.into(), ctx.as_ref())
+			.encrypt(plaintext.as_ref(), ctx.as_ref())
 	}
 
 	#[tracing::instrument(level = "debug", skip(ciphertext))]
-	pub fn decrypt(
+	fn decrypt(
 		&self,
 		ciphertext: impl AsRef<[u8]>,
 		ctx: impl AsRef<[u8]> + Debug,
@@ -125,30 +142,6 @@ impl RotatingStrongBox {
 			}
 		}
 		inner(self, ciphertext.as_ref(), ctx.as_ref())
-	}
-
-	#[tracing::instrument(level = "trace", skip(self, ciphertext))]
-	fn try_decrypt_with(&self, ciphertext: &Ciphertext, ctx: &[u8]) -> Result<Vec<u8>, Error> {
-		let key_cache = self.key_cache.read_arc();
-
-		if let Some(cached_strongbox) = key_cache.decryptor_cache.get(&ciphertext.key_id) {
-			if cached_strongbox.is_expired(self.time.now()) {
-				tracing::debug!(key_id=%ciphertext.key_id, "Key expired");
-				Err(Error::Decryption)
-			} else {
-				cached_strongbox
-					.strong_box
-					.decrypt_ciphertext(ciphertext, ctx)
-			}
-		} else {
-			tracing::debug!(key_id=%ciphertext.key_id, "Key not found");
-			Err(Error::Decryption)
-		}
-	}
-
-	#[cfg(test)]
-	fn timewarp(&mut self, secs: i64) {
-		self.time.timewarp(secs)
 	}
 }
 
@@ -273,7 +266,7 @@ impl Default for KeyCache {
 			backtrack: 0,
 			root_encryption_key: Key::new([0; 32]),
 			root_decryption_keys: Vec::default(),
-			current_encryptor: CachedStrongBox::default(),
+			current_encryptor: CachedStrongBox::new([0u8; 32].into(), Timestamp(0)),
 			decryptor_cache: BTreeMap::default(),
 			decryptor_validities: BTreeSet::default(),
 			cache_invalid_at: Timestamp::default(),
@@ -442,16 +435,7 @@ impl Period {
 #[derive(Clone, Debug)]
 struct CachedStrongBox {
 	invalid_after: Timestamp,
-	strong_box: StrongBox,
-}
-
-impl Default for CachedStrongBox {
-	fn default() -> Self {
-		Self {
-			invalid_after: 0.into(),
-			strong_box: StrongBox::new(Key::new([0; 32]), Vec::<Key<[u8; 32]>>::new()),
-		}
-	}
+	strong_box: StaticStrongBox,
 }
 
 impl CachedStrongBox {
@@ -459,7 +443,7 @@ impl CachedStrongBox {
 	fn new(key: Key<[u8; 32]>, invalid_after: Timestamp) -> Self {
 		Self {
 			invalid_after,
-			strong_box: StrongBox::new(*key.expose_secret(), [*key.expose_secret()]),
+			strong_box: StaticStrongBox::new(*key.expose_secret(), [*key.expose_secret()]),
 		}
 	}
 

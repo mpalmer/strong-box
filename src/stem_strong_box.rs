@@ -1,13 +1,15 @@
 use std::{fmt::Debug, time::Duration};
 
-use super::{kdf, Key, RotatingStrongBox, StrongBox};
+#[cfg(doc)]
+use super::StrongBox;
+use super::{kdf, Key, RotatingStrongBox, StaticStrongBox};
 
 /// A way to derive many [`StrongBox`]es from one set of keys.
 ///
 /// Splitting different encryption usages to use different keys prevents accidental misuse,
 /// and reduces the chances of insecurity from overuse.  Rather than have to manage a whole
 /// bunch of keys, though, a [`StemStrongBox`] allows you to "derive" [`StrongBox`]es for
-/// different uses from a single "root" [`StrongBox`].
+/// different uses from a single "root" [`StemStrongBox`].
 ///
 /// Let us say, for instance, that you have a typical web application.  You want to keep
 /// session data in cookies, but that needs to be encrypted to prevent disclosure and
@@ -52,7 +54,7 @@ use super::{kdf, Key, RotatingStrongBox, StrongBox};
 /// ```
 ///
 /// In the above diagram, the boxes with `---` at top and bottom are [`StemStrongBox`]es, from
-/// which you can derive other [`StrongBox`]es (including [`RotatingStrongBox`]es, if you desire).
+/// which you can derive other StrongBoxes (any of [`StemStrongBox`], [`StaticStrongBox`], or [``RotatingStrongBox`]).
 /// The boxes with `===` at top and bottom are regular [`StrongBox`]es, and are the ones we use to
 /// do cryptography.
 ///
@@ -81,16 +83,16 @@ use super::{kdf, Key, RotatingStrongBox, StrongBox};
 /// let cookies = root.derive_rotating("cookies", WEEKLY, 52);
 ///
 /// // This is the OAuth provider state box
-/// let oauth = root.derive("OAuth");
+/// let oauth = root.derive_static("OAuth");
 ///
 /// // Then the great tree of DB column encryption boxes
 /// let db = root.derive_stem("DB");
 /// let table1 = db.derive_stem("table1");
 /// let table2 = db.derive_stem("table2");
 ///
-/// let sensitive_column_a = table1.derive("sensitive column A");
-/// let sensitive_column_b = table2.derive("sensitive column B");
-/// let sensitive_column_c = table2.derive("sensitive column C");
+/// let sensitive_column_a = table1.derive_static("sensitive column A");
+/// let sensitive_column_b = table2.derive_static("sensitive column B");
+/// let sensitive_column_c = table2.derive_static("sensitive column C");
 ///
 /// // We can now call encrypt/decrypt on any of the boxes created by .derive or .derive_rotating, but
 /// // not any of the boxes created by derive_stem, as they are only for further derivation
@@ -116,12 +118,12 @@ impl StemStrongBox {
 		}
 	}
 
-	/// Derive a [`StrongBox`] from the keys in this [`StemStrongBox`], for the specified purpose.
+	/// Derive a [`StaticStrongBox`] from the keys in this [`StemStrongBox`], for the specified purpose.
 	#[tracing::instrument(level = "debug")]
-	pub fn derive(&self, purpose: impl AsRef<[u8]> + Debug) -> StrongBox {
+	pub fn derive_static(&self, purpose: impl AsRef<[u8]> + Debug) -> StaticStrongBox {
 		let mut context: Vec<u8> = b"derive::".to_vec();
 		context.extend_from_slice(purpose.as_ref());
-		StrongBox::new(
+		StaticStrongBox::new(
 			kdf::derive_key(&self.encryption_key, &context),
 			self.decryption_keys
 				.iter()
@@ -143,7 +145,7 @@ impl StemStrongBox {
 		)
 	}
 
-	/// Derive a new [`RotatingStrongBox`] from the keys in this [`StrongBox`], for the specified purpose.
+	/// Derive a new [`RotatingStrongBox`] from the keys in this [`StemStrongBox`], for the specified purpose.
 	///
 	/// For data that is only valid for a certain period of time, it can be convenient to
 	/// automatically "expire" old data by just forgetting the key that encrypted that data.  You

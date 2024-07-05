@@ -1,7 +1,7 @@
 use secrecy::ExposeSecret as _;
 use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret, StaticSecret};
 
-use super::{Error, Key, StrongBox};
+use super::{Error, Key, StaticStrongBox, StrongBox};
 
 const PRIVATE_KEY: u8 = 0;
 const PUBLIC_KEY: u8 = 1;
@@ -101,8 +101,15 @@ impl SharedStrongBox {
 	pub fn new(key: SharedStrongBoxKey) -> Self {
 		Self { key }
 	}
+}
 
-	pub fn encrypt(&self, plaintext: &[u8], ctx: &[u8]) -> Result<Vec<u8>, Error> {
+impl StrongBox for SharedStrongBox {
+	#[tracing::instrument(level = "debug", skip(plaintext))]
+	fn encrypt(
+		&self,
+		plaintext: impl AsRef<[u8]>,
+		ctx: impl AsRef<[u8]> + std::fmt::Debug,
+	) -> Result<Vec<u8>, Error> {
 		let tmp_key = EphemeralSecret::random();
 		let tmp_pubkey: PublicKey = (&tmp_key).into();
 
@@ -113,17 +120,22 @@ impl SharedStrongBox {
 		}
 
 		let mut aad = Vec::<u8>::new();
-		aad.extend_from_slice(ctx);
+		aad.extend_from_slice(ctx.as_ref());
 		aad.extend_from_slice(tmp_pubkey.as_bytes());
 
-		let strong_box = StrongBox::new(Key::new(box_key.to_bytes()), Vec::<[u8; 32]>::new());
-		let ciphertext = strong_box.encrypt(plaintext, &aad)?;
+		let strong_box = StaticStrongBox::new(Key::new(box_key.to_bytes()), Vec::<[u8; 32]>::new());
+		let ciphertext = strong_box.encrypt(plaintext.as_ref(), &aad)?;
 
 		Ciphertext::new(tmp_pubkey.to_bytes(), ciphertext).to_bytes()
 	}
 
-	pub fn decrypt(&self, ciphertext: &[u8], ctx: &[u8]) -> Result<Vec<u8>, Error> {
-		let ciphertext = Ciphertext::try_from(ciphertext)?;
+	#[tracing::instrument(level = "debug", skip(ciphertext))]
+	fn decrypt(
+		&self,
+		ciphertext: impl AsRef<[u8]>,
+		ctx: impl AsRef<[u8]> + std::fmt::Debug,
+	) -> Result<Vec<u8>, Error> {
+		let ciphertext = Ciphertext::try_from(ciphertext.as_ref())?;
 
 		let box_key = self
 			.key
@@ -139,10 +151,10 @@ impl SharedStrongBox {
 		let box_key = box_key.to_bytes();
 
 		let mut aad = Vec::<u8>::new();
-		aad.extend_from_slice(ctx);
+		aad.extend_from_slice(ctx.as_ref());
 		aad.extend_from_slice(&ciphertext.pubkey);
 
-		let strong_box = StrongBox::new(Key::new(box_key), vec![Key::new(box_key)]);
+		let strong_box = StaticStrongBox::new(Key::new(box_key), vec![Key::new(box_key)]);
 
 		strong_box.decrypt(&ciphertext.ciphertext, &aad)
 	}
