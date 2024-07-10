@@ -228,12 +228,12 @@ impl Ciphertext {
 
 		let mut enc = Encoder::from(&mut v);
 		enc.push(Header::Array(Some(3)))
-			.map_err(|e| Error::encoding("key_id", e))?;
+			.map_err(|e| Error::ciphertext_encoding("key_id", e))?;
 		self.key_id.encode(&mut enc)?;
 		enc.bytes(&self.nonce, None)
-			.map_err(|e| Error::encoding("nonce", e))?;
+			.map_err(|e| Error::ciphertext_encoding("nonce", e))?;
 		enc.bytes(&self.ciphertext, None)
-			.map_err(|e| Error::encoding("ciphertext", e))?;
+			.map_err(|e| Error::ciphertext_encoding("ciphertext", e))?;
 
 		tracing::debug!(
 			nonce = self
@@ -275,14 +275,20 @@ impl TryFrom<&[u8]> for Ciphertext {
 
 		let mut dec = Decoder::from(&b[3..]);
 
-		let Header::Array(Some(3)) = dec.pull().map_err(|e| Error::decoding("array", e))? else {
+		let Header::Array(Some(3)) = dec
+			.pull()
+			.map_err(|e| Error::ciphertext_decoding("array", e))?
+		else {
 			return Err(Error::invalid_ciphertext("expected array"));
 		};
 
 		let key_id = KeyId::decode(&mut dec)?;
 
 		// CBOR's great, until you have to deal with segmented bytestrings...
-		let Header::Bytes(len) = dec.pull().map_err(|e| Error::decoding("nonce header", e))? else {
+		let Header::Bytes(len) = dec
+			.pull()
+			.map_err(|e| Error::ciphertext_decoding("nonce header", e))?
+		else {
 			return Err(Error::invalid_ciphertext("expected nonce"));
 		};
 
@@ -297,7 +303,7 @@ impl TryFrom<&[u8]> for Ciphertext {
 
 		if let Some(chunk) = segment
 			.pull(&mut buf[..])
-			.map_err(|e| Error::decoding("nonce", e))?
+			.map_err(|e| Error::ciphertext_decoding("nonce", e))?
 		{
 			// Is this necessary?  Probably better to be safe than sorry
 			nonce[..].copy_from_slice(chunk);
@@ -308,7 +314,7 @@ impl TryFrom<&[u8]> for Ciphertext {
 		// ibid.
 		let Header::Bytes(len) = dec
 			.pull()
-			.map_err(|e| Error::decoding("ciphertext header", e))?
+			.map_err(|e| Error::ciphertext_decoding("ciphertext header", e))?
 		else {
 			return Err(Error::invalid_ciphertext("expected ciphertext"));
 		};
@@ -323,7 +329,7 @@ impl TryFrom<&[u8]> for Ciphertext {
 
 		while let Some(chunk) = segment
 			.pull(&mut buf[..])
-			.map_err(|e| Error::decoding("ciphertext", e))?
+			.map_err(|e| Error::ciphertext_decoding("ciphertext", e))?
 		{
 			ciphertext.extend_from_slice(chunk);
 		}

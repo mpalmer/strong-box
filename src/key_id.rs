@@ -16,14 +16,14 @@ impl KeyId {
 
 	pub(super) fn encode(&self, enc: &mut ciborium_ll::Encoder<&mut Vec<u8>>) -> Result<(), Error> {
 		enc.bytes(&self.0, None)
-			.map_err(|e| Error::encoding("key_id", e))?;
+			.map_err(|e| Error::ciphertext_encoding("key_id", e))?;
 		Ok(())
 	}
 
 	pub(super) fn decode(dec: &mut ciborium_ll::Decoder<&[u8]>) -> Result<Self, Error> {
 		let Header::Bytes(len) = dec
 			.pull()
-			.map_err(|e| Error::decoding("key_id header", e))?
+			.map_err(|e| Error::ciphertext_decoding("key_id header", e))?
 		else {
 			return Err(Error::invalid_ciphertext("expected key_id"));
 		};
@@ -39,7 +39,7 @@ impl KeyId {
 
 		if let Some(chunk) = segment
 			.pull(&mut buf[..])
-			.map_err(|e| Error::decoding("key_id", e))?
+			.map_err(|e| Error::ciphertext_decoding("key_id", e))?
 		{
 			if chunk.len() != key_id.len() {
 				return Err(Error::invalid_ciphertext("incorrect key_id length"));

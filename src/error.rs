@@ -7,14 +7,26 @@ pub enum Error {
 	#[error("failed to encrypt plaintext")]
 	Encryption,
 
-	#[error("ciphertext decoding failure on {element}: {cause:?}")]
+	#[error("decoding failure: {cause:?}")]
 	Decoding {
+		#[from]
+		cause: ciborium::de::Error<std::io::Error>,
+	},
+
+	#[error("encoding failure: {cause:?}")]
+	Encoding {
+		#[from]
+		cause: ciborium::ser::Error<std::io::Error>,
+	},
+
+	#[error("ciphertext decoding failure on {element}: {cause:?}")]
+	CiphertextDecoding {
 		element: String,
 		cause: ciborium_ll::Error<std::io::Error>,
 	},
 
 	#[error("ciphertext encoding failure on {element}: {cause}")]
-	Encoding {
+	CiphertextEncoding {
 		element: String,
 		cause: std::io::Error,
 	},

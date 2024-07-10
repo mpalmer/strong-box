@@ -45,6 +45,8 @@ mod static_strong_box;
 mod stem_strong_box;
 mod strong_box;
 
+pub use ::ciborium;
+
 pub use error::Error;
 pub use rotating_strong_box::RotatingStrongBox;
 pub use shared_strong_box::{SharedStrongBox, SharedStrongBoxKey};

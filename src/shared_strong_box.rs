@@ -182,11 +182,11 @@ impl Ciphertext {
 
 		let mut enc = Encoder::from(&mut v);
 		enc.push(Header::Array(Some(2)))
-			.map_err(|e| Error::encoding("array", e))?;
+			.map_err(|e| Error::ciphertext_encoding("array", e))?;
 		enc.bytes(&self.pubkey, None)
-			.map_err(|e| Error::encoding("pubkey", e))?;
+			.map_err(|e| Error::ciphertext_encoding("pubkey", e))?;
 		enc.bytes(&self.ciphertext, None)
-			.map_err(|e| Error::encoding("ciphertext", e))?;
+			.map_err(|e| Error::ciphertext_encoding("ciphertext", e))?;
 
 		Ok(v)
 	}
@@ -208,14 +208,17 @@ impl TryFrom<&[u8]> for Ciphertext {
 
 		let mut dec = Decoder::from(&b[3..]);
 
-		let Header::Array(Some(2)) = dec.pull().map_err(|e| Error::decoding("array", e))? else {
+		let Header::Array(Some(2)) = dec
+			.pull()
+			.map_err(|e| Error::ciphertext_decoding("array", e))?
+		else {
 			return Err(Error::invalid_ciphertext("expected array"));
 		};
 
 		// CBOR's great, until you have to deal with segmented bytestrings...
 		let Header::Bytes(len) = dec
 			.pull()
-			.map_err(|e| Error::decoding("pubkey header", e))?
+			.map_err(|e| Error::ciphertext_decoding("pubkey header", e))?
 		else {
 			return Err(Error::invalid_ciphertext("expected pubkey"));
 		};
@@ -231,7 +234,7 @@ impl TryFrom<&[u8]> for Ciphertext {
 
 		if let Some(chunk) = segment
 			.pull(&mut buf[..])
-			.map_err(|e| Error::decoding("pubkey", e))?
+			.map_err(|e| Error::ciphertext_decoding("pubkey", e))?
 		{
 			if chunk.len() != pubkey.len() {
 				return Err(Error::invalid_ciphertext("bad pubkey length"));
@@ -244,7 +247,7 @@ impl TryFrom<&[u8]> for Ciphertext {
 		// ibid.
 		let Header::Bytes(len) = dec
 			.pull()
-			.map_err(|e| Error::decoding("ciphertext header", e))?
+			.map_err(|e| Error::ciphertext_decoding("ciphertext header", e))?
 		else {
 			return Err(Error::invalid_ciphertext("expected ciphertext"));
 		};
@@ -259,7 +262,7 @@ impl TryFrom<&[u8]> for Ciphertext {
 
 		while let Some(chunk) = segment
 			.pull(&mut buf[..])
-			.map_err(|e| Error::decoding("ciphertext", e))?
+			.map_err(|e| Error::ciphertext_decoding("ciphertext", e))?
 		{
 			ciphertext.extend_from_slice(chunk);
 		}
