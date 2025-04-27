@@ -64,7 +64,7 @@ impl Eq for KeyId {}
 impl std::fmt::Display for KeyId {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		for b in &self.0 {
-			f.write_fmt(format_args!("{:02x}", b))?;
+			f.write_fmt(format_args!("{b:02x}"))?;
 		}
 
 		Ok(())
