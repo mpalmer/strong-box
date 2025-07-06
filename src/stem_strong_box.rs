@@ -77,7 +77,7 @@ use super::{kdf, Key, RotatingStrongBox, StaticStrongBox};
 /// let new_key = strong_box::generate_key();
 ///
 /// // This is the basis of all our other boxes
-/// let root = StemStrongBox::new(new_key, [old_key, new_key]);
+/// let root = StemStrongBox::new(new_key.clone(), [old_key, new_key]);
 ///
 /// // This creates a RotatingStrongBox for secure cookie storage
 /// let cookies = root.derive_rotating("cookies", WEEKLY, 52);
@@ -101,16 +101,16 @@ use super::{kdf, Key, RotatingStrongBox, StaticStrongBox};
 /// ```
 #[derive(Clone, Debug)]
 pub struct StemStrongBox {
-	encryption_key: Key<[u8; 32]>,
-	decryption_keys: Vec<Key<[u8; 32]>>,
+	encryption_key: Key,
+	decryption_keys: Vec<Key>,
 }
 
 impl StemStrongBox {
 	/// Create a new [`StemStrongBox`].
 	#[tracing::instrument(level = "debug", skip(enc_key, dec_keys))]
 	pub fn new(
-		enc_key: impl Into<Key<[u8; 32]>> + Debug,
-		dec_keys: impl IntoIterator<Item = impl Into<Key<[u8; 32]>>> + Debug,
+		enc_key: impl Into<Key> + Debug,
+		dec_keys: impl IntoIterator<Item = impl Into<Key>> + Debug,
 	) -> Self {
 		Self {
 			encryption_key: enc_key.into(),
@@ -174,7 +174,7 @@ impl StemStrongBox {
 	/// use up to 52 previous keys to decrypt the data, like this:
 	///
 	/// ```rust
-	/// # use strong_box::StemStrongBox;
+	/// # use strong_box::{StemStrongBox, Key};
 	/// # use std::time::Duration;
 	///
 	/// // Seven days, each of 24 hours, each hour with 3,600 seconds
@@ -182,7 +182,7 @@ impl StemStrongBox {
 	///
 	/// let key = strong_box::generate_key();
 	///
-	/// let cookie_box = StemStrongBox::new(key, Vec::<[u8; 32]>::new()).derive_rotating(b"cookies", WEEKLY, 52);
+	/// let cookie_box = StemStrongBox::new(key, Vec::<Key>::new()).derive_rotating(b"cookies", WEEKLY, 52);
 	///
 	/// // You can now encrypt/decrypt to your heart's content with the cookie_box
 	/// ```

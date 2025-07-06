@@ -73,9 +73,7 @@ impl std::fmt::Display for KeyId {
 
 /// Get a reasonably-unique ID for a key
 #[tracing::instrument(level = "trace")]
-pub(super) fn key_id(key: &Key<[u8; 32]>) -> KeyId {
-	use secrecy::ExposeSecret as _;
-
+pub(super) fn key_id(key: &Key) -> KeyId {
 	let new_id: Kid = Default::default();
 
 	KeyId(

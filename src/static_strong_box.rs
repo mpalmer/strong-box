@@ -2,8 +2,7 @@ use chacha20poly1305::{
 	aead::{Aead as _, Payload},
 	ChaCha20Poly1305, KeyInit as _,
 };
-use rand::{thread_rng, RngCore};
-use secrecy::ExposeSecret as _;
+use rand::{rng, RngCore};
 use std::{collections::HashMap, fmt::Debug};
 
 use super::{Error, Key, KeyId, StrongBox};
@@ -36,8 +35,8 @@ use super::{Error, Key, KeyId, StrongBox};
 /// let old_key = strong_box::generate_key();
 /// let new_key = strong_box::generate_key();
 ///
-/// let old_strongbox = StaticStrongBox::new(old_key.clone(), [old_key]);
-/// let new_strongbox = StaticStrongBox::new(new_key.clone(), [new_key]);
+/// let old_strongbox = StaticStrongBox::new(old_key.clone(), [old_key.clone()]);
+/// let new_strongbox = StaticStrongBox::new(new_key.clone(), [new_key.clone()]);
 /// // This StaticStrongBox encrypts with `new_key`, but can decrypt ciphertexts
 /// // encrypted with *either* `new_key` *or* `old_key`
 /// let fallback_strongbox = StaticStrongBox::new(new_key.clone(), vec![new_key, old_key]);
@@ -97,19 +96,19 @@ use super::{Error, Key, KeyId, StrongBox};
 /// ```
 #[derive(Clone, Debug)]
 pub struct StaticStrongBox {
-	encryption_key: Key<[u8; 32]>,
+	encryption_key: Key,
 	encryption_key_id: KeyId,
-	decryption_keys: HashMap<KeyId, Key<[u8; 32]>>,
+	decryption_keys: HashMap<KeyId, Key>,
 }
 
 impl StaticStrongBox {
 	/// Create a new [`StaticStrongBox`].
 	#[tracing::instrument(level = "debug", skip(enc_key, dec_keys))]
 	pub fn new(
-		enc_key: impl Into<Key<[u8; 32]>>,
-		dec_keys: impl IntoIterator<Item = impl Into<Key<[u8; 32]>>>,
+		enc_key: impl Into<Key>,
+		dec_keys: impl IntoIterator<Item = impl Into<Key>>,
 	) -> Self {
-		let mut key_map: HashMap<KeyId, Key<[u8; 32]>> = HashMap::default();
+		let mut key_map: HashMap<KeyId, Key> = HashMap::default();
 
 		for key in dec_keys.into_iter() {
 			let key = key.into();
@@ -165,7 +164,7 @@ impl StrongBox for StaticStrongBox {
 		ctx: impl AsRef<[u8]> + Debug,
 	) -> Result<Vec<u8>, Error> {
 		let cipher = ChaCha20Poly1305::new((self.encryption_key.expose_secret()).into());
-		let mut rng = thread_rng();
+		let mut rng = rng();
 		let mut nonce = [0u8; 12];
 		rng.fill_bytes(&mut nonce);
 

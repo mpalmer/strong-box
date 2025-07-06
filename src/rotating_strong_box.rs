@@ -1,5 +1,4 @@
 use parking_lot::RwLock;
-use secrecy::ExposeSecret as _;
 use std::{
 	collections::{BTreeMap, BTreeSet},
 	fmt::Debug,
@@ -58,8 +57,8 @@ impl std::panic::UnwindSafe for RotatingStrongBox {}
 impl RotatingStrongBox {
 	#[tracing::instrument(level = "trace")]
 	pub(super) fn new(
-		enc_key: Key<[u8; 32]>,
-		dec_keys: Vec<Key<[u8; 32]>>,
+		enc_key: Key,
+		dec_keys: Vec<Key>,
 		lifespan: Duration,
 		backtrack: u16,
 	) -> Self {
@@ -73,7 +72,10 @@ impl RotatingStrongBox {
 				backtrack,
 				root_encryption_key: enc_key,
 				root_decryption_keys: dec_keys,
-				..KeyCache::default()
+				current_encryptor: CachedStrongBox::new(Box::new([0u8; 32]).into(), Timestamp(0)),
+				decryptor_cache: BTreeMap::default(),
+				decryptor_validities: BTreeSet::default(),
+				cache_invalid_at: Timestamp::default(),
 			})),
 		}
 	}
@@ -241,13 +243,13 @@ impl std::ops::Rem<Duration> for Timestamp {
 	}
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct KeyCache {
 	lifespan: Duration,
 	backtrack: u16,
 
-	root_encryption_key: Key<[u8; 32]>,
-	root_decryption_keys: Vec<Key<[u8; 32]>>,
+	root_encryption_key: Key,
+	root_decryption_keys: Vec<Key>,
 
 	current_encryptor: CachedStrongBox,
 
@@ -259,14 +261,15 @@ struct KeyCache {
 	cache_invalid_at: Timestamp,
 }
 
+#[cfg(test)]
 impl Default for KeyCache {
 	fn default() -> Self {
 		Self {
 			lifespan: Duration::from_secs(0),
 			backtrack: 0,
-			root_encryption_key: Key::new([0; 32]),
+			root_encryption_key: Box::new([0; 32]).into(),
 			root_decryption_keys: Vec::default(),
-			current_encryptor: CachedStrongBox::new([0u8; 32].into(), Timestamp(0)),
+			current_encryptor: CachedStrongBox::new(Box::new([0u8; 32]).into(), Timestamp(0)),
 			decryptor_cache: BTreeMap::default(),
 			decryptor_validities: BTreeSet::default(),
 			cache_invalid_at: Timestamp::default(),
@@ -288,7 +291,7 @@ impl KeyCache {
 	}
 
 	#[tracing::instrument(level = "trace", skip(self))]
-	fn derive_key(&self, root_key: &Key<[u8; 32]>, period: &Period) -> Key<[u8; 32]> {
+	fn derive_key(&self, root_key: &Key, period: &Period) -> Key {
 		let mut context = b"rotation::".to_vec();
 		context.extend_from_slice(&period.to_bytes());
 
@@ -432,7 +435,7 @@ impl Period {
 	}
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct CachedStrongBox {
 	invalid_after: Timestamp,
 	strong_box: StaticStrongBox,
@@ -440,10 +443,10 @@ struct CachedStrongBox {
 
 impl CachedStrongBox {
 	#[tracing::instrument(level = "trace", name = "CachedStrongBox::new")]
-	fn new(key: Key<[u8; 32]>, invalid_after: Timestamp) -> Self {
+	fn new(key: Key, invalid_after: Timestamp) -> Self {
 		Self {
 			invalid_after,
-			strong_box: StaticStrongBox::new(*key.expose_secret(), [*key.expose_secret()]),
+			strong_box: StaticStrongBox::new(key.clone(), [key]),
 		}
 	}
 
@@ -609,7 +612,7 @@ mod tests {
 	fn simple_round_trip() {
 		init();
 		let key = generate_key();
-		let rsb = RotatingStrongBox::new(key.into(), vec![key.into()], Duration::new(60, 0), 0);
+		let rsb = RotatingStrongBox::new(key.clone(), vec![key], Duration::new(60, 0), 0);
 
 		let ciphertext = rsb.encrypt(b"hello, world!", b"test").unwrap();
 
@@ -624,7 +627,7 @@ mod tests {
 	fn context_matters() {
 		init();
 		let key = generate_key();
-		let rsb = RotatingStrongBox::new(key.into(), vec![key.into()], Duration::new(60, 0), 0);
+		let rsb = RotatingStrongBox::new(key.clone(), vec![key], Duration::new(60, 0), 0);
 
 		let ciphertext = rsb.encrypt(b"hello, world!", b"context").unwrap();
 
@@ -637,8 +640,8 @@ mod tests {
 		init();
 		let old_key = generate_key();
 		let old_rsb = RotatingStrongBox::new(
-			old_key.into(),
-			Vec::<Key<[u8; 32]>>::new(),
+			old_key.clone(),
+			Vec::<Key>::new(),
 			Duration::new(86400, 0),
 			0,
 		);
@@ -647,12 +650,7 @@ mod tests {
 
 		let new_key = generate_key();
 
-		let rsb = RotatingStrongBox::new(
-			new_key.into(),
-			vec![old_key.into()],
-			Duration::new(86400, 0),
-			0,
-		);
+		let rsb = RotatingStrongBox::new(new_key, vec![old_key], Duration::new(86400, 0), 0);
 
 		assert_eq!(
 			b"hello, world!".to_vec(),
@@ -667,10 +665,9 @@ mod tests {
 
 		let key = generate_key();
 
-		let mut rsb = RotatingStrongBox::new(key.into(), vec![key.into()], Duration::new(60, 0), 0);
+		let mut rsb = RotatingStrongBox::new(key.clone(), vec![key], Duration::new(60, 0), 0);
 
-		// An easy way to get some random input...
-		let plaintext = generate_key();
+		let plaintext = b"tasty, tasty plaintext";
 		let ciphertext = rsb.encrypt(&plaintext, b"test").unwrap();
 
 		// Should be able to decrypt what we just encrypted
@@ -694,10 +691,9 @@ mod tests {
 
 		let key = generate_key();
 
-		let mut rsb = RotatingStrongBox::new(key.into(), vec![key.into()], Duration::new(60, 0), 3);
+		let mut rsb = RotatingStrongBox::new(key.clone(), vec![key], Duration::new(60, 0), 3);
 
-		// An easy way to get some random input...
-		let plaintext = generate_key();
+		let plaintext = b"some sort of delicious plaintext";
 		let ciphertext = rsb.encrypt(plaintext, b"test").unwrap();
 
 		// Should be able to decrypt what we just encrypted

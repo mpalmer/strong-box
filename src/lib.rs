@@ -54,29 +54,11 @@ pub use static_strong_box::StaticStrongBox;
 pub use stem_strong_box::StemStrongBox;
 pub use strong_box::StrongBox;
 
-/// All keys that are used by strongboxes must be wrapped in this type in order to minimise the
-/// chance of leakage.
-pub type Key<T> = secrecy::Secret<T>;
-
 use static_strong_box::Ciphertext;
 
 mod kdf;
+mod key;
 mod key_id;
+
+pub use key::{generate_key, Key};
 use key_id::{key_id, KeyId};
-
-/// Create a key suitable for use by [`StrongBox`].
-///
-/// This isn't usually required in real-world usage, as you'll *usually* have your keys
-/// stored somewhere out of the way.  However, for testing use, or the odd occasion when
-/// encryption/decryption is very temporary, a simple function to generate a secure key
-/// is useful to have laying around.
-#[tracing::instrument(level = "debug")]
-pub fn generate_key() -> [u8; 32] {
-	use rand::{thread_rng, RngCore};
-
-	let mut k = [0u8; 32];
-
-	thread_rng().fill_bytes(&mut k);
-
-	k
-}
