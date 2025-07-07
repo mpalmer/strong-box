@@ -60,5 +60,5 @@ mod kdf;
 mod key;
 mod key_id;
 
-pub use key::{generate_key, Key};
-use key_id::{key_id, KeyId};
+pub use key::{Key, generate_key};
+use key_id::{KeyId, key_id};

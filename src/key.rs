@@ -30,7 +30,7 @@ impl From<Box<[u8; 32]>> for Key {
 /// is useful to have laying around.
 #[tracing::instrument(level = "debug")]
 pub fn generate_key() -> Key {
-	use rand::{rng, RngCore};
+	use rand::{RngCore, rng};
 
 	let mut k = [0u8; 32];
 

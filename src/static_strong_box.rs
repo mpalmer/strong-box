@@ -1,8 +1,8 @@
 use chacha20poly1305::{
-	aead::{Aead as _, Payload},
 	ChaCha20Poly1305, KeyInit as _,
+	aead::{Aead as _, Payload},
 };
-use rand::{rng, RngCore};
+use rand::{RngCore, rng};
 use std::{collections::HashMap, fmt::Debug};
 
 use super::{Error, Key, KeyId, StrongBox};

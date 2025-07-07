@@ -1,6 +1,6 @@
 use ciborium_ll::Header;
 
-use super::{kdf, Error, Key};
+use super::{Error, Key, kdf};
 
 type Kid = [u8; 16];
 

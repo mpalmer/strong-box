@@ -6,7 +6,7 @@ use std::{
 	time::Duration,
 };
 
-use super::{kdf, Ciphertext, Error, Key, KeyId, StaticStrongBox, StrongBox};
+use super::{Ciphertext, Error, Key, KeyId, StaticStrongBox, StrongBox, kdf};
 
 /// A [`StrongBox`] variant that uses a different set of keys for each period of time.
 ///

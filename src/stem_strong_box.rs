@@ -2,7 +2,7 @@ use std::{fmt::Debug, time::Duration};
 
 #[cfg(doc)]
 use super::StrongBox;
-use super::{kdf, Key, RotatingStrongBox, StaticStrongBox};
+use super::{Key, RotatingStrongBox, StaticStrongBox, kdf};
 
 /// A way to derive many [`StrongBox`]es from one set of keys.
 ///
